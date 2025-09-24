@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LangGraph Workflow Builder</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <!-- ログイン画面 -->
+  <div id="auth-container">
+    <div class="auth-box">
+      <h2>ログイン</h2>
+      <p>メールアドレスとパスワードでログインしてください。</p>
+      <div id="auth-error" class="error-message"></div>
+      <input type="email" id="email-input" placeholder="メールアドレス">
+      <input type="password" id="password-input" placeholder="パスワード">
+      <button id="login-btn" class="primary-btn">ログイン</button>
+      <button id="signup-btn" class="secondary-btn">新規登録</button>
+    </div>
+  </div>
+    
+  <!-- アプリ本体 (最初は非表示) -->
+  <div id="app-container" class="app-container" style="display: none;">
+    <header class="app-header">
+      <div class="header-left">
+        <img src="/static/images/Agent Canvas_logo_left.JPG" alt="Agent Canvas Logo" style="height: 50px; width: auto; vertical-align: middle;">
+        <img src="/static/images/Agent Canvas_logo_right.JPG" alt="Agent Canvas Logo" style="height: 50px; width: auto; vertical-align: middle;">
+      </div>
+      <div class="header-right">
+        <span id="user-email"></span>
+        <button id="logout-btn" class="secondary-btn">ログアウト</button>
+      </div>
+    </header>
+
+    <nav class="sidebar">
+      <div class="workflow-section">
+        <h4>ワークフロー</h4>
+        <ul id="workflow-list"></ul>
+        <div class="new-workflow-controls">
+          <input type="text" id="new-workflow-name-input" placeholder="新しいワークフロー名">
+          <button id="add-new-workflow-btn" class="add-btn">新規作成</button>
+        </div>
+      </div>
+      <!-- <ul>
+        <li class="active"><a href="#"><span class="material-icons-outlined">edit_note</span>ワークフローエディタ</a></li>
+      </ul> -->
+    </nav>
+
+    <main class="main-content">
+      <div class="editor-panel">
+        <!-- 1. ワークフロー実行 -->
+        <details class="accordion-item" open>
+          <summary class="accordion-header">
+            <span class="material-icons-outlined">play_circle</span>
+            <h3>ワークフロー実行</h3>
+          </summary>
+          <div class="accordion-content" id="execution-area">
+            <p>定義したワークフローを実行します。※この内容はプロンプト内の `{input}` 変数として利用できます。空欄で実行もできます。</p>
+            <textarea id="workflow-input" rows="4" placeholder="ここに分析テーマや質問を入力..."></textarea>
+            <div class="execution-controls">
+              <button id="execute-btn" class="primary-btn">実行</button>
+              <div id="loading-spinner" class="spinner" style="display: none;"></div>
+            </div>
+            <div id="results-area" style="display: none;">
+              <h4>実行結果:</h4>
+              <div class="result-tabs">
+                <button class="tab-link active" data-tab="final-output-tab">最終出力</button>
+                <button class="tab-link" data-tab="full-state-tab">全State情報</button>
+              </div>
+              <div id="final-output-tab" class="tab-content active">
+                <div id="final-result-content" class="markdown-body"></div>
+              </div>
+              <div id="full-state-tab" class="tab-content">
+                <div id="full-state-content" class="markdown-body"></div>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- 2. ワークフロー & コード編集 (統合) -->
+        <details class="accordion-item" open>
+          <summary class="accordion-header">
+            <span class="material-icons-outlined">account_tree</span>
+            <h3>ワークフロー & コード編集</h3>
+          </summary>
+          <div class="accordion-content">
+            <div class="save-controls">
+              <button id="save-workflow-btn" class="primary-btn">
+                <span class="material-icons-outlined">save</span>
+                ワークフローを保存
+              </button>
+              <span id="save-status"></span>
+            </div>
+            <div id="workflow-name-container">
+              <label for="workflow-name-input">ワークフロー名:</label>
+              <input type="text" id="workflow-name-input" placeholder="ワークフローの名前を入力">
+            </div>
+
+            <!-- ファイル管理UI -->
+            <div class="file-management-section">
+              <h4 class="mt-20">ファイル管理</h4>
+              <p>GCS上のファイルをワークフローに紐付けます。<br>サポート形式: .txt, .json, .csv, .xlsx, .zip</p>
+              <div id="file-list"></div>
+              <div class="file-upload-form">
+                <input type="file" id="file-upload-input">
+                <input type="text" id="file-output-key-input" placeholder="Stateの出力キー (例: customer_data)">
+                
+                <!-- Zipファイル用のオプション -->
+                <div id="zip-options" style="display: none;">
+                  <label for="excluded-extensions-input">解析から除外する拡張子 (カンマ区切り):</label>
+                  <input type="text" id="excluded-extensions-input" placeholder=".png, .log, .tmp">
+                </div>
+
+                <button id="upload-file-btn" class="secondary-btn">アップロード</button>
+                <div id="file-upload-spinner" class="spinner" style="display: none;"></div>
+              </div>
+              <div id="file-error" class="error-message" style="margin-top: 10px;"></div>
+            </div>
+
+            <h4 class="mt-20">ノード (エージェント)</h4>
+            <div id="nodes-list"></div>
+            <button id="add-node-btn" class="add-btn">+ 新しいノードを追加</button>
+
+            <h4 class="mt-20">エッジ (連携)</h4>
+            <div id="edges-list"></div>
+            <button id="add-edge-btn" class="add-btn">+ 新しいエッジを追加</button>
+
+            <h4 class="mt-20">グローバル設定</h4>
+            <div id="global-settings">
+              <label for="entry-point-select">エントリーポイント:</label>
+              <select id="entry-point-select"></select>
+              <label for="final-output-key-input">最終結果キー:</label>
+              <input type="text" id="final-output-key-input" placeholder="e.g., final_document">
+            </div>
+              
+            <h4 class="mt-20">コード / プロンプト編集</h4>
+            <p>編集したいLLMまたはPythonノードを選択してください。</p>
+            <select id="prompt-select"></select>
+            <textarea id="prompt-textarea" rows="15"></textarea>
+          </div>
+        </details>
+      </div>
+
+      <div class="graph-panel">
+        <div class="graph-header">
+          <h2>ワークフロー図</h2>
+          <p>定義したノードとエッジがここに図示されます。</p>
+        </div>
+        <div id="graph-container"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <!-- Mermaid.jsライブラリ -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <!-- ローカルスクリプト -->
+  <script src="/static/firebase-config.js"></script>
+  <script src="/static/script.js"></script>
+</body>
+</html>
