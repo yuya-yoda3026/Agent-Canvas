@@ -1,0 +1,10 @@
+functions-framework==3.*
+langchain
+langgraph
+langchain_google_vertexai
+google-cloud-storage
+firebase-admin
+google-cloud-firestore
+pandas
+openpyxl
+RestrictedPython
