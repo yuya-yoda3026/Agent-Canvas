@@ -1,0 +1,49 @@
+# cloudbuild.yaml
+steps:
+  # 0. Secret Managerから認証情報を取得
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - 'gcloud secrets versions access latest --secret=GOOGLE_APPLICATION_CREDENTIALS --project=${_PROJECT_ID} > ./credential.json'
+    id: 'Fetch Credentials'
+
+  # 1. Dockerイメージのビルド
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile'
+      - '-t'
+      - '${_ARTIFACT_REGISTRY_URL}/${_PROJECT_ID}/${_REPOSITORY_NAME}/${_IMAGE_NAME}:${_CI_COMMIT_SHA}' # Artifact Registry URL にプッシュ
+      - '.'
+    id: 'Build Docker Image'
+
+  # 2. Artifact Registry へのイメージプッシュ
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_ARTIFACT_REGISTRY_URL}/${_PROJECT_ID}/${_REPOSITORY_NAME}/${_IMAGE_NAME}:${_CI_COMMIT_SHA}'
+    id: 'Push Docker Image'
+
+  # 3. Cloud Run へのデプロイ
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_CLOUD_RUN_SERVICE_NAME}'
+      - '--image=${_ARTIFACT_REGISTRY_URL}/${_PROJECT_ID}/${_REPOSITORY_NAME}/${_IMAGE_NAME}:${_CI_COMMIT_SHA}'
+      - "--platform=managed"
+      - '--region=${_PROJECT_REGION}'
+      - '--allow-unauthenticated'
+      - '--set-env-vars=PROJECT_ID=${_PROJECT_ID},PROJECT_REGION=${_PROJECT_REGION},GEMINI_MODEL_NAME=${_GEMINI_MODEL_NAME},FILE_BUCKET_NAME=${_FILE_BUCKET_NAME}'
+      - '--timeout=1800'
+      - '--memory=8Gi'
+    id: 'Deploy to Cloud Run'
+
+images:
+  - '${_ARTIFACT_REGISTRY_URL}/${_PROJECT_ID}/${_REPOSITORY_NAME}/${_IMAGE_NAME}:${_CI_COMMIT_SHA}'
+
+logsBucket: "langgraph-builder-bucket-cicd-${_PROJECT_ID}"
+serviceAccount: "projects/${_PROJECT_ID}/serviceAccounts/sa-build@${_PROJECT_ID}.iam.gserviceaccount.com"
